@@ -1,5 +1,6 @@
 #include "../include/VMRuntime.h"
 
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -8,7 +9,6 @@ vm_t vm;
 vm_opcode_t current();
 
 ///@brief Processing method, should be called whenever possible
-///@details If INC_FREERTOS_H is defined then this function will yield when possible, ideally this should be when it's finished with executing a single operation.
 void vm_tickRuntime() {
 
     switch (current()) {
@@ -20,11 +20,6 @@ void vm_tickRuntime() {
         default:
             break;
     }
-
-
-    #ifdef INC_FREERTOS_H
-        taskYIELD();
-    #endif
 }
 
 void vm_destroy() {

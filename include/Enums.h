@@ -1,4 +1,5 @@
 #pragma once
+#include <stdbool.h>
 #include <sys/types.h>
 
 ///@brief Defines how many variables (uint32) can we hold in memory
