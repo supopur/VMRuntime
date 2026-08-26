@@ -1,15 +1,15 @@
-#include "../include/VMRuntime.h"
+#include "../include/vm_runtime.h"
 
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 
-vm_t vm;
+VM_t vm;
 //forward declaration
-vm_opcode_t current();
+VMOpcode_t current();
 
 ///@brief Processing method, should be called whenever possible
-void vm_tickRuntime() {
+void tick() {
 
     switch (current()) {
         case PUSH_CONST:
@@ -22,54 +22,54 @@ void vm_tickRuntime() {
     }
 }
 
-void vm_destroy() {
+void VM_Destroy() {
     vm.ip = 0;
-    vm.stack_top = 0;
+    vm.stackTop = 0;
 
     // Zero out the stack and locals storage
     memset(vm.stack, 0, VM_STACK_SIZE);
     memset(vm.locals, 0, VM_LOCALS_SIZE);
 }
 
-void vm_load_program(const vm_program_t *program) {
-    vm_destroy();
+void VM_LoadProgram(const VMProgram_t *p_program) {
+    VM_Destroy();
 
-    vm = (vm_t){
-        .program = program,
+    vm = (VM_t){
+        .p_program = p_program,
         .halted = false,
-        .stack_top = 0,
+        .stackTop = 0,
     };
 }
 
 ///@brief Gets current opcode and advances/consumes it
-vm_opcode_t current() {
-    return (vm_opcode_t)vm.program->bytecode[vm.ip++];
+VMOpcode_t current() {
+    return (VMOpcode_t)vm.p_program->p_bytecode[vm.ip++];
 }
 
-void vm_advance() {
+void advance() {
     vm.ip++;
 }
 
 ///@brief Read 1 byte of instructions/operands
-static uint8_t vm_read_u8() {
+static uint8_t read_u8() {
     // read one byte and increment the instruction pointer before returning
-    return vm.program->bytecode[vm.ip++];
+    return vm.p_program->p_bytecode[vm.ip++];
 }
 
 ///@brief Read 2 bytes of instructions/operands
-static uint16_t vm_read_u16() {
+static uint16_t read_u16() {
     uint16_t value;
     // copy the region of memory into the value variable
-    memcpy(&value, vm.program->bytecode + vm.ip, sizeof(value));
+    memcpy(&value, vm.p_program->p_bytecode + vm.ip, sizeof(value));
     // move the instruction pointer to the end of what we have just read
     vm.ip += sizeof(value);
     return value;
 }
 ///@brief Read 4 bytes of instructions/operands
-static uint32_t vm_read_u32() {
+static uint32_t read_u32() {
     uint32_t value;
     // copy the region of memory into the value variable
-    memcpy(&value, vm.program->bytecode + vm.ip, sizeof(value));
+    memcpy(&value, vm.p_program->p_bytecode + vm.ip, sizeof(value));
     // move the instruction pointer to the end of what we have just read
     vm.ip += sizeof(value);
     return value;

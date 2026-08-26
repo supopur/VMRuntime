@@ -51,7 +51,7 @@ typedef enum {
     BNOT = 0x37,
     SHL = 0x38,
     SHR = 0x39,
-} vm_opcode_t;
+} VMOpcode_t;
 
 ///@brief Single instruction/operation
 ///@param byteCode Opcode
@@ -59,44 +59,44 @@ typedef enum {
 ///@param strOperand Char array/string argument, optional
 ///@attention Only one operand type can be defined
 typedef struct {
-    vm_opcode_t byteCode;
+    VMOpcode_t byteCode;
     u_int32_t operand;
     char strOperand[];
-} vm_instruction_t;
+} VMInstruction_t;
 
 ///@brief Function metadata
 typedef struct {
-    uint32_t bytecode_offset;  // Offset into bytecode array
-    uint32_t bytecode_size;    // Size in bytes
-    uint32_t local_count;      // Number of local variables
-    uint32_t param_count;      // Number of parameters
-} vm_function_t;
+    uint32_t bytecodeOffset;  // Offset into p_bytecode array
+    uint32_t bytecodeSize;    // Size in bytes
+    uint32_t localCount;      // Number of local variables
+    uint32_t paramCount;      // Number of parameters
+} VMFunction_t;
 
 ///@brief Program bytecode and metadata
 typedef struct {
-    const uint8_t *bytecode;   // Read-only bytecode buffer
-    size_t bytecode_size;      // Total bytecode size
+    const uint8_t *p_bytecode;   // Read-only bytecode buffer
+    size_t bytecodeSize;      // Total bytecode size
 
-    const vm_function_t *functions;  // Function table
-    uint32_t function_count;
+    const VMFunction_t *p_functions;  // Function table
+    uint32_t functionCount;
 
-    const char * const *strings;  // String constant table
-    uint32_t string_count;
-} vm_program_t;
+    const char * const *p_strings;  // String constant table
+    uint32_t stringCount;
+} VMProgram_t;
 
 ///@brief Virtual machine execution state/runtime
 typedef struct {
-    const vm_program_t *program;
+    const VMProgram_t *p_program;
 
     ///@brief Instruction Pointer
     ///@details Points to the current instruction's index inside the currently loaded program. Is zeroed out on creating/reset of a VM runtime
-    size_t ip;              // instruction pointer
+    size_t ip; // instruction pointer
 
     uint32_t stack[VM_STACK_SIZE];
-    size_t stack_top;
+    size_t stackTop;
 
     uint32_t locals[VM_LOCALS_SIZE];
 
     bool halted;
 
-} vm_t;
+} VM_t;
