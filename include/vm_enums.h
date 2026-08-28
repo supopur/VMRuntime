@@ -9,7 +9,7 @@
 
 ///@brief Bytecode instructions
 ///@attention Keep in sync with Compiler.h in VMCompiler
-typedef enum {
+typedef enum : uint8_t {
     // Variables operations
     LOAD = 0x01,
     STORE = 0x02,
@@ -20,7 +20,7 @@ typedef enum {
     // Jumps
     JUMP = 0x06, JUMP_IF_FALSE = 0x07,
     // Functions
-    RETURN = 0x08, CALL = 0x09,
+    RETURN = 0x08, CALL = 0x09, CALL_NATIVE = 0x0A,
     // Housekeeping
     HALT = 0xFF,
 
@@ -53,40 +53,55 @@ typedef enum {
     SHR = 0x39,
 } VMOpcode_t;
 
+///@warning Size of enum is not consistent across platforms
+typedef enum {
+    BUTTON_PESSED = 0x01,
+} VMEvent_t;
+
 ///@brief Single instruction/operation
-///@param byteCode Opcode
-///@param operand Int argument, optional
-///@param strOperand Char array/string argument, optional
-///@attention Only one operand type can be defined
+///@param operation Opcode
+///@param operand argument, optional
 typedef struct {
-    VMOpcode_t byteCode;
-    u_int32_t operand;
-    char strOperand[];
+    VMOpcode_t operation;
+    uint32_t operand;
 } VMInstruction_t;
 
 ///@brief Function metadata
 typedef struct {
-    uint32_t bytecodeOffset;  // Offset into p_bytecode array
-    uint32_t bytecodeSize;    // Size in bytes
-    uint32_t localCount;      // Number of local variables
-    uint32_t paramCount;      // Number of parameters
+    uint32_t bytecodeOffset; // Offset into p_bytecode array
+    uint32_t bytecodeSize; // Size in bytes
+    uint32_t localCount; // Number of local variables
+    uint32_t paramCount; // Number of parameters
 } VMFunction_t;
+
+typedef struct {
+    // same as in VMFunction_t
+    uint32_t bytecodeOffset;
+    uint32_t bytecodeSize;
+    uint32_t localCount;
+    uint32_t paramCount;
+
+    ///@warning Size of enum is not consistent across platforms
+    VMEvent_t eventType;
+    ///@brief source node on the can bus; 0 for self
+    uint8_t sourceId;
+    ///@brief Button id, ADC reading...
+    uint32_t payload;
+} VMEventHandler_t;
 
 ///@brief Program bytecode and metadata
 typedef struct {
-    const uint8_t *p_bytecode;   // Read-only bytecode buffer
-    size_t bytecodeSize;      // Total bytecode size
+    void *p_bytecode;
 
-    const VMFunction_t *p_functions;  // Function table
-    uint32_t functionCount;
-
-    const char * const *p_strings;  // String constant table
-    uint32_t stringCount;
+    VMEventHandler_t *p_event_handlers;
+    VMFunction_t *p_functions;
+    uint32_t *p_constants;
+    VMInstruction_t *p_instructions;
 } VMProgram_t;
 
 ///@brief Virtual machine execution state/runtime
 typedef struct {
-    const VMProgram_t *p_program;
+    VMProgram_t *p_program;
 
     ///@brief Instruction Pointer
     ///@details Points to the current instruction's index inside the currently loaded program. Is zeroed out on creating/reset of a VM runtime
