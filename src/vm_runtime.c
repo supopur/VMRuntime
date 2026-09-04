@@ -67,8 +67,15 @@ void VM_LoadProgram(const void *p_program_file) {
         USB_PrintDebug("[VMR] ERR BC header failed to parse");
 }
 
-size_t VM_LookupEvent(const VMEvent_t *p_event) {
+size_t VM_LookupEvent(VMEvent_t targetEvent) {
+    uint8_t *base = (uint8_t *)vm.p_program->p_bytecode;
+    VMEventHandler_t *handlers = (VMEventHandler_t *)(base + eventHandlerOffset);
 
+    for (uint32_t i = 0; i < eventHandlerCount; i++) {
+        VMEventHandler_t *current = &handlers[i];
+        if (current->eventType == targetEvent)
+            return i;
+    }
 }
 
 void VM_JumpToAddr(const size_t *p_target_addr) {
