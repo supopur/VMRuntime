@@ -6,9 +6,6 @@
 
 #include "../../Core/Src/Orangutan/Drivers/usb_driver.h"
 
-#define HEADER_MAGIC "VMBC"
-#define RUNTIME_VERSION 1
-
 VM_t vm;
 //forward declaration
 VMOpcode_t current();
@@ -50,16 +47,15 @@ void VM_Destroy() {
     memset(vm.locals, 0, VM_LOCALS_SIZE);
 }
 
-void VM_LoadProgram(const void *p_program_file) {
+void VM_LoadProgram(const void *p_bytecode) {
     VM_Destroy();
 
-    VMProgram_t program;
-
     vm = (VM_t){
-        .p_program = &program,
         .halted = false,
         .stackTop = 0,
     };
+
+    vm.p_program->p_bytecode = p_bytecode;
 
     if (parse_header())
         USB_PrintDebug("[VMR] INF BC header parsed");
@@ -67,15 +63,21 @@ void VM_LoadProgram(const void *p_program_file) {
         USB_PrintDebug("[VMR] ERR BC header failed to parse");
 }
 
-size_t VM_LookupEvent(VMEvent_t targetEvent) {
-    uint8_t *base = (uint8_t *)vm.p_program->p_bytecode;
-    VMEventHandler_t *handlers = (VMEventHandler_t *)(base + eventHandlerOffset);
-
+uint32_t VM_GetEventInstructionOffset(const VMEvent_t *p_event) {
     for (uint32_t i = 0; i < eventHandlerCount; i++) {
-        VMEventHandler_t *current = &handlers[i];
-        if (current->eventType == targetEvent)
-            return i;
+
+        //u8 to tell it we use offsets in bytes
+        const uint8_t *p_handlerData = (const uint8_t *)vm.p_program->p_bytecode + eventHandlerOffset + i * sizeof(VMEventHandler_t);
+
+        const VMEventHandler_t *p_eventHandler = (const VMEventHandler_t *)p_handlerData;
+
+        // since the event type enum is stored with offset 0 relative to the event handler
+        if (memcmp(p_handlerData, p_event, sizeof(VMEvent_t)) == 0) {
+            return p_eventHandler->instructionOffset;
+        }
     }
+
+    return 0;
 }
 
 void VM_JumpToAddr(const size_t *p_target_addr) {
@@ -141,12 +143,12 @@ bool parse_header() {
 
     read_str(magic, 4);
 
-    if (!strcmp(magic, HEADER_MAGIC)) {
+    if (strcmp(magic, VMR_HEADER_MAGIC) != 0) {
         USB_PrintDebug("[VMR] ERR failed to find magic in bytecode header!");
         return false;
     }
 
-    if (read_u32() > RUNTIME_VERSION)
+    if (read_u32() > VMR_RUNTIME_VERSION)
         USB_PrintDebug("[VMR] WARN compiler version greater than runtime version.");
 
     // we don't really need this

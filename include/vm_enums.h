@@ -53,8 +53,7 @@ typedef enum : uint8_t {
     SHR = 0x39,
 } VMOpcode_t;
 
-///@warning Size of enum is not consistent across platforms
-typedef enum {
+typedef enum : uint16_t {
     BUTTON_PESSED = 0x01,
 } VMEvent_t;
 
@@ -75,23 +74,16 @@ typedef struct {
 } VMFunction_t;
 
 typedef struct {
-    // same as in VMFunction_t
-    uint32_t bytecodeOffset;
-    uint32_t bytecodeSize;
-    uint32_t localCount;
-    uint32_t paramCount;
-
-    ///@warning Size of enum is not consistent across platforms
     VMEvent_t eventType;
-    ///@brief source node on the can bus; 0 for self
-    uint8_t sourceId;
-    ///@brief Button id, ADC reading...
-    uint32_t payload;
+    uint8_t nodeId;
+    uint8_t subNodeId;
+    uint32_t instructionOffset; // the entry point
+    uint32_t size;
 } VMEventHandler_t;
 
 ///@brief Program bytecode and metadata
 typedef struct {
-    void *p_bytecode;
+    const void *p_bytecode;
 
     VMEventHandler_t *p_event_handlers;
     VMFunction_t *p_functions;
