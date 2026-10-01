@@ -7,73 +7,142 @@
 #include "../../Core/Src/Orangutan/Drivers/usb_driver.h"
 
 VM_t vm;
-//forward declaration
-VMOpcode_t current();
-bool parse_header();
+static VMProgram_t s_loadedProgram;
 
-//bytecode file header properties
-// uint32_t headerSize;
-uint32_t variableCount;
-uint32_t constantCount;
-uint32_t constantOffset;
-uint32_t functionCount;
-uint32_t functionOffset;
-uint32_t eventHandlerCount;
-uint32_t eventHandlerOffset;
-uint32_t instructionCount;
-uint32_t bytecodeOffset;
-// uint32_t bytecodeSize;
+// Header metadata
+static uint32_t variableCount = 0;
+static uint32_t constantCount = 0;
+static uint32_t constantOffset = 0;
+static uint32_t functionCount = 0;
+static uint32_t functionOffset = 0;
+static uint32_t eventHandlerCount = 0;
+static uint32_t eventHandlerOffset = 0;
+static uint32_t instructionCount = 0;
+static uint32_t bytecodeOffset = 0;
 
-///@brief Processing method, should be called whenever possible
-void tick() {
-
-    switch (current()) {
-        case PUSH_CONST:
-        {
-            break;
-        }
-
-        default:
-            break;
+static inline bool vm_push(uint32_t value) {
+    if (vm.stackTop >= VM_STACK_SIZE) {
+        USB_PrintDebug("[VMR] ERR stack overflow\r\n");
+        vm.halted = true;
+        return false;
     }
+    vm.stack[vm.stackTop++] = value;
+    return true;
 }
 
-void VM_Destroy() {
+static inline bool vm_pop(uint32_t *p_value) {
+    if (p_value == NULL || vm.stackTop == 0) {
+        USB_PrintDebug("[VMR] ERR stack underflow\r\n");
+        vm.halted = true;
+        return false;
+    }
+    *p_value = vm.stack[--vm.stackTop];
+    return true;
+}
+
+static uint32_t read_u32(size_t *p_offset) {
+    uint32_t value = 0;
+    if (vm.p_program != NULL && vm.p_program->p_bytecode != NULL) {
+        memcpy(&value, (const uint8_t *)vm.p_program->p_bytecode + *p_offset, sizeof(value));
+        *p_offset += sizeof(value);
+    }
+    return value;
+}
+
+static bool parse_header(void) {
+    if (vm.p_program == NULL || vm.p_program->p_bytecode == NULL) {
+        return false;
+    }
+
+    size_t offset = 0;
+    char magic[5];
+    memcpy(magic, (const uint8_t *)vm.p_program->p_bytecode + offset, 4);
+    magic[4] = '\0';
+    offset += 4;
+
+    if (strcmp(magic, VMR_HEADER_MAGIC) != 0) {
+        USB_PrintDebug("[VMR] ERR failed to find magic in bytecode header!\r\n");
+        return false;
+    }
+
+    uint32_t version = read_u32(&offset);
+    if (version > VMR_RUNTIME_VERSION) {
+        USB_PrintDebug("[VMR] WARN compiler version greater than runtime version.\r\n");
+    }
+
+    // headerSize
+    (void)read_u32(&offset);
+
+    variableCount = read_u32(&offset);
+
+    constantCount = read_u32(&offset);
+    constantOffset = read_u32(&offset);
+
+    vm.p_program->p_constants = (uint32_t *)((const uint8_t *)vm.p_program->p_bytecode + constantOffset);
+
+    functionCount = read_u32(&offset);
+    functionOffset = read_u32(&offset);
+
+    vm.p_program->p_functions = (VMFunction_t *)((const uint8_t *)vm.p_program->p_bytecode + functionOffset);
+
+    eventHandlerCount = read_u32(&offset);
+    eventHandlerOffset = read_u32(&offset);
+
+    if (eventHandlerCount == 0) {
+        USB_PrintDebug("[VMR] ERR no event handlers registered in BC\r\n");
+        return false;
+    }
+
+    vm.p_program->p_event_handlers = (VMEventHandler_t *)((const uint8_t *)vm.p_program->p_bytecode + eventHandlerOffset);
+
+    instructionCount = read_u32(&offset);
+    bytecodeOffset = read_u32(&offset);
+
+    vm.p_program->p_instructions = (VMInstruction_t *)((const uint8_t *)vm.p_program->p_bytecode + bytecodeOffset);
+
+    return true;
+}
+
+void VM_Destroy(void) {
     vm.ip = 0;
     vm.stackTop = 0;
+    vm.halted = true;
 
-    // Zero out the stack and locals storage
-    memset(vm.stack, 0, VM_STACK_SIZE);
-    memset(vm.locals, 0, VM_LOCALS_SIZE);
+    memset(vm.stack, 0, sizeof(vm.stack));
+    memset(vm.locals, 0, sizeof(vm.locals));
 }
 
 void VM_LoadProgram(const void *p_bytecode) {
     VM_Destroy();
 
+    memset(&s_loadedProgram, 0, sizeof(s_loadedProgram));
+    s_loadedProgram.p_bytecode = p_bytecode;
+
     vm = (VM_t){
+        .p_program = &s_loadedProgram,
         .halted = false,
         .stackTop = 0,
+        .ip = 0,
     };
 
-    vm.p_program->p_bytecode = p_bytecode;
-
-    if (parse_header())
-        USB_PrintDebug("[VMR] INF BC header parsed");
-    else
-        USB_PrintDebug("[VMR] ERR BC header failed to parse");
+    if (parse_header()) {
+        USB_PrintDebug("[VMR] INF BC header parsed\r\n");
+    } else {
+        USB_PrintDebug("[VMR] ERR BC header failed to parse\r\n");
+        vm.halted = true;
+    }
 }
 
 uint32_t VM_GetEventInstructionOffset(const VMEvent_t *p_event) {
+    if (p_event == NULL || vm.p_program == NULL || vm.p_program->p_bytecode == NULL) {
+        return 0;
+    }
+
     for (uint32_t i = 0; i < eventHandlerCount; i++) {
+        const VMEventHandler_t *p_handler = (const VMEventHandler_t *)((const uint8_t *)vm.p_program->p_bytecode + eventHandlerOffset + (i * sizeof(VMEventHandler_t)));
 
-        //u8 to tell it we use offsets in bytes
-        const uint8_t *p_handlerData = (const uint8_t *)vm.p_program->p_bytecode + eventHandlerOffset + i * sizeof(VMEventHandler_t);
-
-        const VMEventHandler_t *p_eventHandler = (const VMEventHandler_t *)p_handlerData;
-
-        // since the event type enum is stored with offset 0 relative to the event handler
-        if (memcmp(p_handlerData, p_event, sizeof(VMEvent_t)) == 0) {
-            return p_eventHandler->instructionOffset;
+        if (p_handler->eventType == *p_event) {
+            return p_handler->instructionOffset;
         }
     }
 
@@ -81,108 +150,182 @@ uint32_t VM_GetEventInstructionOffset(const VMEvent_t *p_event) {
 }
 
 void VM_JumpToAddr(const size_t *p_target_addr) {
-    vm.ip = *p_target_addr;
-    //todo clear jump table
-}
-
-///@brief Read 1 byte of instructions/operands
-static uint8_t read_u8() {
-    // read one byte and increment the instruction pointer before returning
-    return ((uint8_t *)vm.p_program->p_bytecode)[vm.ip++];
-}
-
-///@brief Read char from current ip position and advance by 1 byte
-static char read_char(void)
-{
-    return ((char *)vm.p_program->p_bytecode)[vm.ip++];
-}
-
-///@brief Read a string for len bytes
-static void read_str(char *buf, uint32_t len)
-{
-    for (uint32_t i = 0; i < len - 1; i++) {
-        buf[i] = ((char *)vm.p_program->p_bytecode)[vm.ip++];
+    if (p_target_addr != NULL) {
+        vm.ip = *p_target_addr;
+        vm.halted = false;
     }
-
-    buf[len - 1] = '\0';
 }
 
-///@brief Read 2 bytes of instructions/operands
-static uint16_t read_u16() {
-    uint16_t value;
-    // copy the region of memory into the value variable
-    memcpy(&value, vm.p_program->p_bytecode + vm.ip, sizeof(value));
-    // move the instruction pointer to the end of what we have just read
-    vm.ip += sizeof(value);
-    return value;
-}
-///@brief Read 4 bytes of instructions/operands
-static uint32_t read_u32() {
-    uint32_t value;
-    // copy the region of memory into the value variable
-    memcpy(&value, vm.p_program->p_bytecode + vm.ip, sizeof(value));
-    // move the instruction pointer to the end of what we have just read
-    vm.ip += sizeof(value);
-    return value;
+bool VM_IsHalted(void) {
+    return vm.halted;
 }
 
-///@brief Gets current opcode and advances/consumes it
-VMOpcode_t current() {
-    return ((VMOpcode_t *)vm.p_program->p_bytecode)[vm.ip++];
-}
-
-void advance() {
-    vm.ip++;
-}
-
-bool parse_header() {
-    // we really shouldn't be using the IP for this but whatever
-    vm.ip = 0;
-
-    char magic[5];
-
-    read_str(magic, 4);
-
-    if (strcmp(magic, VMR_HEADER_MAGIC) != 0) {
-        USB_PrintDebug("[VMR] ERR failed to find magic in bytecode header!");
+bool VM_Step(void) {
+    if (vm.halted || vm.p_program == NULL || vm.p_program->p_instructions == NULL) {
         return false;
     }
 
-    if (read_u32() > VMR_RUNTIME_VERSION)
-        USB_PrintDebug("[VMR] WARN compiler version greater than runtime version.");
-
-    // we don't really need this
-    uint32_t headerSize = read_u32();
-
-    variableCount = read_u32();
-
-    constantCount = read_u32();
-    constantOffset = read_u32();
-
-    vm.p_program->p_constants = (uint32_t *)vm.p_program->p_bytecode + constantOffset;
-
-    functionCount = read_u32();
-    functionOffset = read_u32();
-
-    vm.p_program->p_functions = (VMFunction_t *)vm.p_program->p_bytecode + functionOffset;
-
-    eventHandlerCount = read_u32();
-    eventHandlerOffset = read_u32();
-
-    if (eventHandlerCount == 0) {
-        USB_PrintDebug("[VMR] ERR no event handlers registered in BC");
+    if (vm.ip >= instructionCount) {
+        vm.halted = true;
         return false;
     }
 
-    vm.p_program->p_event_handlers = (VMEventHandler_t *)(vm.p_program->p_bytecode + eventHandlerOffset);
+    VMInstruction_t instr = vm.p_program->p_instructions[vm.ip++];
+    uint32_t a = 0;
+    uint32_t b = 0;
 
-    instructionCount = read_u32();
-    bytecodeOffset = read_u32();
+    switch (instr.operation) {
+        case PUSH_CONST:
+            if (instr.operand < constantCount && vm.p_program->p_constants != NULL) {
+                vm_push(vm.p_program->p_constants[instr.operand]);
+            }
+            break;
 
-    vm.p_program->p_instructions = (VMInstruction_t *)(vm.p_program->p_bytecode + bytecodeOffset);
+        case LOAD:
+            if (instr.operand < VM_LOCALS_SIZE) {
+                vm_push(vm.locals[instr.operand]);
+            }
+            break;
 
-    // not needed for now
-    // uint32_t bytecodeSize = read_u32();
+        case STORE:
+            if (instr.operand < VM_LOCALS_SIZE && vm_pop(&a)) {
+                vm.locals[instr.operand] = a;
+            }
+            break;
 
-    return true;
+        case POP:
+            vm_pop(&a);
+            break;
+
+        case DUP:
+            if (vm.stackTop > 0) {
+                vm_push(vm.stack[vm.stackTop - 1]);
+            }
+            break;
+
+        case ADD:
+            if (vm_pop(&b) && vm_pop(&a)) vm_push(a + b);
+            break;
+
+        case SUB:
+            if (vm_pop(&b) && vm_pop(&a)) vm_push(a - b);
+            break;
+
+        case MUL:
+            if (vm_pop(&b) && vm_pop(&a)) vm_push(a * b);
+            break;
+
+        case DIV:
+            if (vm_pop(&b) && vm_pop(&a)) {
+                if (b != 0) {
+                    vm_push(a / b);
+                } else {
+                    USB_PrintDebug("[VMR] ERR division by zero\r\n");
+                    vm.halted = true;
+                }
+            }
+            break;
+
+        case MOD:
+            if (vm_pop(&b) && vm_pop(&a)) {
+                if (b != 0) {
+                    vm_push(a % b);
+                } else {
+                    USB_PrintDebug("[VMR] ERR modulo by zero\r\n");
+                    vm.halted = true;
+                }
+            }
+            break;
+
+        case LT:
+            if (vm_pop(&b) && vm_pop(&a)) vm_push((a < b) ? 1 : 0);
+            break;
+
+        case LE:
+            if (vm_pop(&b) && vm_pop(&a)) vm_push((a <= b) ? 1 : 0);
+            break;
+
+        case GT:
+            if (vm_pop(&b) && vm_pop(&a)) vm_push((a > b) ? 1 : 0);
+            break;
+
+        case GE:
+            if (vm_pop(&b) && vm_pop(&a)) vm_push((a >= b) ? 1 : 0);
+            break;
+
+        case EQ:
+            if (vm_pop(&b) && vm_pop(&a)) vm_push((a == b) ? 1 : 0);
+            break;
+
+        case NEQ:
+            if (vm_pop(&b) && vm_pop(&a)) vm_push((a != b) ? 1 : 0);
+            break;
+
+        case AND:
+            if (vm_pop(&b) && vm_pop(&a)) vm_push((a && b) ? 1 : 0);
+            break;
+
+        case OR:
+            if (vm_pop(&b) && vm_pop(&a)) vm_push((a || b) ? 1 : 0);
+            break;
+
+        case NOT:
+            if (vm_pop(&a)) vm_push((!a) ? 1 : 0);
+            break;
+
+        case NEGATE:
+            if (vm_pop(&a)) vm_push((uint32_t)(-(int32_t)a));
+            break;
+
+        case BAND:
+            if (vm_pop(&b) && vm_pop(&a)) vm_push(a & b);
+            break;
+
+        case BOR:
+            if (vm_pop(&b) && vm_pop(&a)) vm_push(a | b);
+            break;
+
+        case BXOR:
+            if (vm_pop(&b) && vm_pop(&a)) vm_push(a ^ b);
+            break;
+
+        case BNOT:
+            if (vm_pop(&a)) vm_push(~a);
+            break;
+
+        case SHL:
+            if (vm_pop(&b) && vm_pop(&a)) vm_push(a << b);
+            break;
+
+        case SHR:
+            if (vm_pop(&b) && vm_pop(&a)) vm_push(a >> b);
+            break;
+
+        case JUMP:
+            vm.ip = instr.operand;
+            break;
+
+        case JUMP_IF_FALSE:
+            if (vm_pop(&a)) {
+                if (a == 0) {
+                    vm.ip = instr.operand;
+                }
+            }
+            break;
+
+        case HALT:
+            vm.halted = true;
+            return false;
+
+        default:
+            USB_PrintDebug("[VMR] ERR unknown opcode\r\n");
+            vm.halted = true;
+            return false;
+    }
+
+    return !vm.halted;
+}
+
+void tick(void) {
+    VM_Step();
 }
