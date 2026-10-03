@@ -18,9 +18,12 @@ typedef enum : uint8_t {
     DUP = 0x04,
     PUSH_CONST = 0x05,
     // Jumps
-    JUMP = 0x06, JUMP_IF_FALSE = 0x07,
+    JUMP = 0x06,
+    JUMP_IF_FALSE = 0x07,
     // Functions
-    RETURN = 0x08, CALL = 0x09, CALL_NATIVE = 0x0A,
+    RETURN = 0x08,
+    CALL = 0x09,
+    CALL_NATIVE = 0x0A,
     // Housekeeping
     HALT = 0xFF,
 
@@ -68,9 +71,9 @@ typedef struct {
 ///@brief Function metadata
 typedef struct {
     uint32_t bytecodeOffset; // Offset into p_bytecode array
-    uint32_t bytecodeSize; // Size in bytes
-    uint32_t localCount; // Number of local variables
-    uint32_t paramCount; // Number of parameters
+    uint32_t bytecodeSize;   // Size in bytes
+    uint32_t localCount;     // Number of local variables
+    uint32_t paramCount;     // Number of parameters
 } VMFunction_t;
 
 typedef struct {

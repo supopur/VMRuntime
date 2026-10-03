@@ -93,7 +93,8 @@ static bool parse_header(void) {
         return false;
     }
 
-    vm.p_program->p_event_handlers = (VMEventHandler_t *)((const uint8_t *)vm.p_program->p_bytecode + eventHandlerOffset);
+    vm.p_program->p_event_handlers =
+        (VMEventHandler_t *)((const uint8_t *)vm.p_program->p_bytecode + eventHandlerOffset);
 
     instructionCount = read_u32(&offset);
     bytecodeOffset = read_u32(&offset);
@@ -139,7 +140,9 @@ uint32_t VM_GetEventInstructionOffset(const VMEvent_t *p_event) {
     }
 
     for (uint32_t i = 0; i < eventHandlerCount; i++) {
-        const VMEventHandler_t *p_handler = (const VMEventHandler_t *)((const uint8_t *)vm.p_program->p_bytecode + eventHandlerOffset + (i * sizeof(VMEventHandler_t)));
+        const VMEventHandler_t *p_handler =
+            (const VMEventHandler_t *)((const uint8_t *)vm.p_program->p_bytecode + eventHandlerOffset +
+                                       (i * sizeof(VMEventHandler_t)));
 
         if (p_handler->eventType == *p_event) {
             return p_handler->instructionOffset;
@@ -193,9 +196,7 @@ bool VM_Step(void) {
             }
             break;
 
-        case POP:
-            vm_pop(&a);
-            break;
+        case POP: vm_pop(&a); break;
 
         case DUP:
             if (vm.stackTop > 0) {
@@ -204,15 +205,18 @@ bool VM_Step(void) {
             break;
 
         case ADD:
-            if (vm_pop(&b) && vm_pop(&a)) vm_push(a + b);
+            if (vm_pop(&b) && vm_pop(&a))
+                vm_push(a + b);
             break;
 
         case SUB:
-            if (vm_pop(&b) && vm_pop(&a)) vm_push(a - b);
+            if (vm_pop(&b) && vm_pop(&a))
+                vm_push(a - b);
             break;
 
         case MUL:
-            if (vm_pop(&b) && vm_pop(&a)) vm_push(a * b);
+            if (vm_pop(&b) && vm_pop(&a))
+                vm_push(a * b);
             break;
 
         case DIV:
@@ -238,72 +242,86 @@ bool VM_Step(void) {
             break;
 
         case LT:
-            if (vm_pop(&b) && vm_pop(&a)) vm_push((a < b) ? 1 : 0);
+            if (vm_pop(&b) && vm_pop(&a))
+                vm_push((a < b) ? 1 : 0);
             break;
 
         case LE:
-            if (vm_pop(&b) && vm_pop(&a)) vm_push((a <= b) ? 1 : 0);
+            if (vm_pop(&b) && vm_pop(&a))
+                vm_push((a <= b) ? 1 : 0);
             break;
 
         case GT:
-            if (vm_pop(&b) && vm_pop(&a)) vm_push((a > b) ? 1 : 0);
+            if (vm_pop(&b) && vm_pop(&a))
+                vm_push((a > b) ? 1 : 0);
             break;
 
         case GE:
-            if (vm_pop(&b) && vm_pop(&a)) vm_push((a >= b) ? 1 : 0);
+            if (vm_pop(&b) && vm_pop(&a))
+                vm_push((a >= b) ? 1 : 0);
             break;
 
         case EQ:
-            if (vm_pop(&b) && vm_pop(&a)) vm_push((a == b) ? 1 : 0);
+            if (vm_pop(&b) && vm_pop(&a))
+                vm_push((a == b) ? 1 : 0);
             break;
 
         case NEQ:
-            if (vm_pop(&b) && vm_pop(&a)) vm_push((a != b) ? 1 : 0);
+            if (vm_pop(&b) && vm_pop(&a))
+                vm_push((a != b) ? 1 : 0);
             break;
 
         case AND:
-            if (vm_pop(&b) && vm_pop(&a)) vm_push((a && b) ? 1 : 0);
+            if (vm_pop(&b) && vm_pop(&a))
+                vm_push((a && b) ? 1 : 0);
             break;
 
         case OR:
-            if (vm_pop(&b) && vm_pop(&a)) vm_push((a || b) ? 1 : 0);
+            if (vm_pop(&b) && vm_pop(&a))
+                vm_push((a || b) ? 1 : 0);
             break;
 
         case NOT:
-            if (vm_pop(&a)) vm_push((!a) ? 1 : 0);
+            if (vm_pop(&a))
+                vm_push((!a) ? 1 : 0);
             break;
 
         case NEGATE:
-            if (vm_pop(&a)) vm_push((uint32_t)(-(int32_t)a));
+            if (vm_pop(&a))
+                vm_push((uint32_t)(-(int32_t)a));
             break;
 
         case BAND:
-            if (vm_pop(&b) && vm_pop(&a)) vm_push(a & b);
+            if (vm_pop(&b) && vm_pop(&a))
+                vm_push(a & b);
             break;
 
         case BOR:
-            if (vm_pop(&b) && vm_pop(&a)) vm_push(a | b);
+            if (vm_pop(&b) && vm_pop(&a))
+                vm_push(a | b);
             break;
 
         case BXOR:
-            if (vm_pop(&b) && vm_pop(&a)) vm_push(a ^ b);
+            if (vm_pop(&b) && vm_pop(&a))
+                vm_push(a ^ b);
             break;
 
         case BNOT:
-            if (vm_pop(&a)) vm_push(~a);
+            if (vm_pop(&a))
+                vm_push(~a);
             break;
 
         case SHL:
-            if (vm_pop(&b) && vm_pop(&a)) vm_push(a << b);
+            if (vm_pop(&b) && vm_pop(&a))
+                vm_push(a << b);
             break;
 
         case SHR:
-            if (vm_pop(&b) && vm_pop(&a)) vm_push(a >> b);
+            if (vm_pop(&b) && vm_pop(&a))
+                vm_push(a >> b);
             break;
 
-        case JUMP:
-            vm.ip = instr.operand;
-            break;
+        case JUMP: vm.ip = instr.operand; break;
 
         case JUMP_IF_FALSE:
             if (vm_pop(&a)) {
@@ -313,9 +331,7 @@ bool VM_Step(void) {
             }
             break;
 
-        case HALT:
-            vm.halted = true;
-            return false;
+        case HALT: vm.halted = true; return false;
 
         default:
             USB_PrintDebug("[VMR] ERR unknown opcode\r\n");
